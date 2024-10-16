@@ -18,7 +18,7 @@ my_nsga2R_laptop <- function (fn, varNo, objDim, lowerBounds = rep(-Inf, varNo),
   wb <- createWorkbook()
   addWorksheet(wb, "initial")
   writeData(wb, "initial", parent)
-  #write.xlsx(parent, "~/Documents/MDM manuscript 2024/R code and results in excel/parents in iter laptop.xlsx", sheetName = "initial", append = TRUE)
+  #write.xlsx(parent, "~/parents in iter laptop.xlsx", sheetName = "initial", append = TRUE)
   ###
   parent <- cbind(parent, t(apply(parent, 1, fn)))
   cat("ranking the initial population")
@@ -91,7 +91,7 @@ my_nsga2R_laptop <- function (fn, varNo, objDim, lowerBounds = rep(-Inf, varNo),
     ###
     addWorksheet(wb, as.character(iter))
     writeData(wb, as.character(iter), parent)
-    #write.xlsx(parent, "~/Documents/MDM manuscript 2024/R code and results in excel/parents in iter laptop.xlsx", sheetName = as.character(iter), append = TRUE)
+    #write.xlsx(parent, "~/parents in iter laptop.xlsx", sheetName = as.character(iter), append = TRUE)
     saveWorkbook(wb, file = "parents in iter laptop.xlsx", overwrite = TRUE)
     toc(log = TRUE)
     cat("\n")
