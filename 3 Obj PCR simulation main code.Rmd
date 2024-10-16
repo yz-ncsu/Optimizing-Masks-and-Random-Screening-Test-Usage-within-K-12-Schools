@@ -1,5 +1,5 @@
 ---
-title: "3 obj: PCR reruns 4 testing scenarios for dissertation"
+title: "3 obj: PCR Main Code"
 output: pdf
 ---
   
@@ -38,8 +38,7 @@ library(readxl)
 library(readr)
 library(ggpubr)
 library(ggrepel)
-setwd("~/Documents/MDM manuscript 2024/R code and results in excel")
-# setwd("G:/My Drive/chapter 3")
+setwd("~")
 ```
 
 ## SEIR function
@@ -166,8 +165,6 @@ eig = eigen(C)
 CM_a = M
 CM_s = f_reduce*CM_a
 
-R0 = beta*(max(Re(eig$values)))*((1 - alpha + alpha*eta)/gamma+(1-alpha)/delta) # NEW R0 = 9.5
-R0
 para = c(Q_s = Q_s, sigma = sigma, beta = beta, eta = eta, delta = delta, gamma = gamma, alpha = alpha, mu =0, CM_a = CM_a, CM_s = CM_s, Ca = 1, Cs = 1, FNpcr_a = 0.101, FNpcr_s = 0.101, FNrap_a = 0.453, FNrap_s = 0.27,FPpcr_a = 0.001, FPpcr_s = 0.001, FPrap_a = 0.003, FPrap_s = 0.009) # NEWthing4 compliance rate = 1
 
 FNpcr_a = 0.101
@@ -242,7 +239,7 @@ log.txt <- tic.log(format = TRUE)
 log.lst <- tic.log(format = FALSE)
 timings <- unlist(lapply(log.lst, function(x) x$toc - x$tic))
 toc()
-# DP: 15479.571 sec elapsed
+
 
 ## Note: change nsga2R internal function to integer functions of crossover and mutation
 # mosmafs::recIntSBX()
@@ -266,16 +263,16 @@ writeData(wb, "Sheet1", nsga_result)
 
 addWorksheet(wb, "timings")
 writeData(wb, "timings", timings)
-#write.xlsx(nsga_result, "Sensitivity Analysis 3 obj pcr 1 PT 1 AT mask 40%.xlsx")
-#write.xlsx(timings, "Sensitivity Analysis 3 obj pcr 1 PT 1 AT mask 40%.xlsx", sheetName = "timings", append = TRUE)
-#saveWorkbook(wb, file = "Sensitivity Analysis 3 obj pcr 1 PT 1 expose 3.xlsx", overwrite = TRUE)
+#write.xlsx(nsga_result, "nsga results.xlsx")
+#write.xlsx(timings, "nsga results.xlsx", sheetName = "timings", append = TRUE)
+#saveWorkbook(wb, file = "nsga results 3 obj pcr 1 PT 1 AT.xlsx", overwrite = TRUE)
 
 ```
 
 Plot
 ```{r}
 # read results
-nsga_result = read_excel("0606 3 obj pcr 1 PT 1 AT used in dissertation.xlsx", sheet = 'Sheet1')
+nsga_result = read_excel("nsga results 3 obj pcr 1 PT 1 AT.xlsx", sheet = 'Sheet1')
 nsga_result = nsga_result[,2:36]
 
 cbp1 <- c("#999999", "#4d4d4d", "#56B4E9", "#1f78b4", 
@@ -284,7 +281,7 @@ cbp1 <- c("#999999", "#4d4d4d", "#56B4E9", "#1f78b4",
           "#fee090", "#d6604d", "#7f3b08", "#fdb863",
           "#9e0142")
           
-all_gg2 = ggplot(nsga_result) +
+ggplot(nsga_result) +
   geom_point(aes(x = c2, y = c1, color = as.factor(c3)),size=2) +
   theme_bw() +
   geom_text_repel(aes(x = c2, y = c1, label = round(c(max(c1),min(c1)))),
@@ -294,7 +291,6 @@ all_gg2 = ggplot(nsga_result) +
   xlab("Number of Random Screening Tests")+
   ylab("End of Semester Infections")+
   labs(title = "PCR Tests: End of Semester Infections/Tests/Weeks of Masks", color="Weeks of masks")
-all_gg2
 
-ggsave("3 obj PCR ff 100 gen.png",width = 960/96, height = 600/96, dpi=700)
+# ggsave("3 obj PCR ff 100 gen.png",width = 960/96, height = 600/96, dpi=700)
 ```
