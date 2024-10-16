@@ -1,0 +1,574 @@
+---
+title: "R Notebook"
+output: pdf
+---
+3-obj results
+Plot the graphs in Dissertation
+
+```{r, setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+knitr::opts_knit$set(root.dir = '/Users/katedrive/Library/Mobile Documents/com~apple~CloudDocs/From Google Drive/chapter 3')
+# knitr::opts_knit$set(root.dir = 'G:/My Drive/chapter 3')
+```
+
+## Import package:
+```{r}
+library(deSolve)
+library(ggplot2)
+library(tidyr)
+library(dplyr)
+library(plyr)
+library(reshape2)
+library(xlsx)
+library(readxl)
+library(readr)
+library(ggpubr)
+library(ggrepel)
+setwd("/Users/katedrive/Library/Mobile Documents/com~apple~CloudDocs/From Google Drive/chapter 3")
+# setwd("G:/My Drive/chapter 3")
+```
+
+# 1. Read Data and PF
+```{r}
+# read results
+nsga_result = read_excel("0606 rerun 3 obj used in dissertation/0606 3 obj pcr 1 PT 1 AT used in dissertation.xlsx", sheet = 'Sheet1')
+nsga_result = nsga_result[,2:36]
+
+cbp1 <- c("#999999", "#4d4d4d", "#56B4E9", "#1f78b4", 
+          "#8c510a", "#dfc27d", "#80cdc1", "#01665e",
+          "#b8e186", "#4d9221", "#b2abd2", "#542788",
+          "#fee090", "#d6604d", "#7f3b08", "#fdb863",
+          "#9e0142")
+          
+all_gg2 = ggplot(nsga_result,aes(x = c2, y = c1, color = as.factor(c3))) +
+  geom_point(size=4) + #2
+  geom_line() +
+  theme_bw() +
+  geom_text_repel(aes(x = c2, y = c1, label = round(c(max(c1),min(c1)))),
+                      data = subset(nsga_result, c1 %in% c(min(c1),max(c1))), size = 5) + #3
+  #theme(plot.title = element_text(size = 20)) +
+  #theme(axis.title=element_text(size=15), axis.text = element_text(size=13)) + 
+  ylim(180,300) +
+  scale_color_manual(values = cbp1) +
+  xlab("Number of Random Screening Tests")+
+  ylab("End of Semester Infections")+
+  labs(title = "PCR Tests: End of Semester Infections/Tests/Weeks of Masks", color="Weeks of masks")
+all_gg2
+
+ggsave("3 obj pcr ff with lines small title.png",width = 960/96, height = 600/96, dpi=700)
+
+# 3-d graph
+# remotes::install_github("tylermorganwall/rayshader")
+library(rayshader)
+all_gg1 = ggplot(nsga_result) +
+  geom_point(aes(x = c2, y = c1, color = c3),size=2) +
+  scale_color_continuous(limits=c(0,16)) +
+  theme_bw() +
+  ylim(180,300) +
+  xlab("Number of Random Screening Tests")+
+  ylab("End of Semester Infections")+
+  labs(title = "PCR Tests: End of Semester Infections/Tests/Weeks of Masks", color="Weeks of masks")
+#plot_gg(all_gg1, height=3, width=3.5, multicore=TRUE, pointcontract = 0.8, soliddepth=-1.5)
+```
+
+# 2. Take a look at the best 5
+```{r}
+new_frame <- nsga_result %>%
+              #filter(c3 == 0) %>%
+              filter(round(c1,0) %in% c(192,217,245,265,278,292)) %>%  # quantile(c1)
+              distinct() %>%
+              arrange(c1)
+n_results <- dim(new_frame)[1]
+
+source("obj_fun_1_yT_PCR.R")
+
+# choose five best results
+x_best1 = c(t(new_frame[1,4:35]))
+x_best2 = c(t(new_frame[2,4:35]))
+x_best3 = c(t(new_frame[3,4:35]))
+x_best4 = c(t(new_frame[4,4:35]))
+x_best5 = c(t(new_frame[5,4:35]))
+x_best6 = c(t(new_frame[6,4:35]))
+x_best7 = c(t(new_frame[7,4:35]))
+
+obj_best1 = obj_fun_1_yT_PCR(x_best1)
+current_opt1 = current_opt[1:Tn,]
+t_addition_opt1 = t_addition
+obj_best2 = obj_fun_1_yT_PCR(x_best2)
+current_opt2 = current_opt[1:Tn,]
+t_addition_opt2 = t_addition
+obj_best3 = obj_fun_1_yT_PCR(x_best3)
+current_opt3 = current_opt[1:Tn,]
+t_addition_opt3 = t_addition
+obj_best4 = obj_fun_1_yT_PCR(x_best4)
+current_opt4 = current_opt[1:Tn,]
+t_addition_opt4 = t_addition
+obj_best5 = obj_fun_1_yT_PCR(x_best5)
+current_opt5 = current_opt[1:Tn,]
+t_addition_opt5 = t_addition
+obj_best6 = obj_fun_1_yT_PCR(x_best6)
+current_opt6 = current_opt[1:Tn,]
+t_addition_opt6 = t_addition
+obj_best7 = obj_fun_1_yT_PCR(x_best7)
+current_opt7 = current_opt[1:Tn,]
+t_addition_opt7 = t_addition
+
+# find the additional test days
+best_results <- new_frame %>%
+              mutate(total_planned_testing_days = rowSums(new_frame[,4:19] != 0), .before = x1_1) %>%
+              select(c1,c2,total_planned_testing_days,c3) %>%
+              mutate(category = c(paste0("Result_", 1:n_results)), .before = c1)
+colnames(best_results)[c(2,3,5)] = c("total_infection","total_tests","total_mask_weeks")
+
+# add additional to routine
+best_results$total_AT_testing_days = c(sum(t_addition_opt1/0.4),sum(t_addition_opt2/0.4),
+                                     sum(t_addition_opt3/0.4),sum(t_addition_opt4/0.4),
+                                     sum(t_addition_opt5/0.4),sum(t_addition_opt6/0.4),
+                                     sum(t_addition_opt7/0.4))
+
+best_results$total_test_days = best_results$total_planned_testing_days + best_results$total_AT_testing_days
+#best_results = best_results[ , -which(names(best_results) %in% c("total_routine_test_days","total_add_test_days"))]
+best_results = best_results[,c(1,2,3,7,4,6,5)]
+
+# Graph of days of school missed
+# in isolation
+wdays = c(seq(1,107,7),seq(2,107,7),seq(3,107,7),seq(4,107,7),seq(5,107,7))
+TISO1 = sum(current_opt1[wdays,134:151]*500,current_opt1[wdays,153:170]*500)   # days of school missed
+TISO2 = sum(current_opt2[wdays,134:151]*500,current_opt2[wdays,153:170]*500)
+TISO3 = sum(current_opt3[wdays,134:151]*500,current_opt3[wdays,153:170]*500)
+TISO4 = sum(current_opt4[wdays,134:151]*500,current_opt4[wdays,153:170]*500)
+TISO5 = sum(current_opt5[wdays,134:151]*500,current_opt5[wdays,153:170]*500)
+TISO6 = sum(current_opt6[wdays,134:151]*500,current_opt6[wdays,153:170]*500)
+TISO7 = sum(current_opt7[wdays,134:151]*500,current_opt7[wdays,153:170]*500)
+
+best_results$days_school_missed = c(TISO1,TISO2,TISO3,TISO4,TISO5,TISO6,TISO7)
+```
+
+Plot table of best 5
+```{r}
+library("htmltools")
+library("webshot")    
+# webshot::install_phantomjs()
+# export_formattable <- function(f, file, width = 720, height = NULL, 
+#                                background = "white", delay = 0.2)
+#     {
+#       w <- as.htmlwidget(f, width = width, height = height)
+#       path <- html_print(w, background = background, viewer = NULL)
+#       url <- paste0("file:///", gsub("\\\\", "/", normalizePath(path)))
+#       webshot(url,
+#               file = file,
+#               selector = ".formattable_widget",
+#               delay = delay)
+# }
+best7 = round(best_results[,2:7],0)
+Index = paste0("Result_", seq(1,7,1))
+best7 = cbind(Index,best7)
+library(formattable)
+FT = formattable(best7, list(
+      total_infection = color_bar("#e9c46a"),
+      total_tests = color_bar("#276419"),
+      total_test_days = color_bar("#7fbf7b"),
+      total_planned_testing_days = color_bar("#d9f0d3"),
+      total_AT_testing_days = color_bar("#d9f0d3"),
+      total_mask_weeks = color_bar("#beaed4")))#,
+      #days_school_missed = color_bar("#d6604d")))
+
+# export_formattable(FT,"FT.png")
+# save size 1000 * 360 840*360
+```
+
+# 3. Graph Cumulative and Daily Infection
+```{r}
+source("obj_fun_na_PCR.R")
+
+# no testing at all
+x_00 = c(rep(0,16),rep(0,16),rep(0,16)) # 0% routine, NO mask, NO addition
+x_testA = c(rep(4,16),rep(0,16),rep(1,16)) # 80% routine, NO mask, YES addition
+x_maskA = c(rep(0,16),rep(1,16),rep(0,16)) # 0 test, all mask
+x_All = c(rep(4,16),rep(1,16),rep(1,16)) # ALL test, ALL mask
+obj_00 = obj_fun_na_PCR(x_00) # use function of no addition tests
+current_00 = current_opt[1:Tn,]
+obj_testA = obj_fun_na_PCR(x_testA)
+current_testA = current_opt[1:Tn,]
+obj_maskA = obj_fun_na_PCR(x_maskA)
+current_maskA = current_opt[1:Tn,]
+obj_All = obj_fun_na_PCR(x_All)
+current_All = current_opt[1:Tn,]
+
+Infected_cum = cbind.data.frame(rep(seq(1,107),11),
+                                c(rep("Result_No_Test_No_Mask",107),rep(paste0("Result_", 1:n_results),each = 107),
+                                  rep("Result_Test_All",107), rep("Result_Mask_All",107), rep("Result_All_Test_All_Mask",107)),
+                                c(N_total*unname(rowSums(current_00[,(14*nage+1):(15*nage)])),
+                                  N_total*unname(rowSums(current_opt1[,(14*nage+1):(15*nage)])),
+                                  N_total*unname(rowSums(current_opt2[,(14*nage+1):(15*nage)])),
+                                  N_total*unname(rowSums(current_opt3[,(14*nage+1):(15*nage)])),
+                                  N_total*unname(rowSums(current_opt4[,(14*nage+1):(15*nage)])),
+                                  N_total*unname(rowSums(current_opt5[,(14*nage+1):(15*nage)])),
+                                  N_total*unname(rowSums(current_opt6[,(14*nage+1):(15*nage)])),
+                                  N_total*unname(rowSums(current_opt7[,(14*nage+1):(15*nage)])),
+                                  N_total*unname(rowSums(current_testA[,(14*nage+1):(15*nage)])),
+                                  N_total*unname(rowSums(current_maskA[,(14*nage+1):(15*nage)])),
+                                  N_total*unname(rowSums(current_All[,(14*nage+1):(15*nage)]))))
+Infected = cbind.data.frame(rep(seq(1,107),11),
+                            c(rep("Result_No_Test_No_Mask",107),rep(paste0("Result_", 1:n_results),each = 107),
+                              rep("Result_Test_All",107),rep("Result_Mask_All",107), rep("Result_All_Test_All_Mask",107)),
+                            c(N_total*unname(rowSums(current_00[,(2*nage+1):(11*nage)])),
+                              N_total*unname(rowSums(current_opt1[,(2*nage+1):(11*nage)])),
+                              N_total*unname(rowSums(current_opt2[,(2*nage+1):(11*nage)])),
+                              N_total*unname(rowSums(current_opt3[,(2*nage+1):(11*nage)])),
+                              N_total*unname(rowSums(current_opt4[,(2*nage+1):(11*nage)])),
+                              N_total*unname(rowSums(current_opt5[,(2*nage+1):(11*nage)])),
+                              N_total*unname(rowSums(current_opt6[,(2*nage+1):(11*nage)])),
+                              N_total*unname(rowSums(current_opt7[,(2*nage+1):(11*nage)])),
+                              N_total*unname(rowSums(current_testA[,(2*nage+1):(11*nage)])),
+                              N_total*unname(rowSums(current_maskA[,(2*nage+1):(11*nage)])),
+                              N_total*unname(rowSums(current_All[,(2*nage+1):(11*nage)]))))
+colnames(Infected_cum) <- c('time','Category','Cumulative_Infection')
+colnames(Infected) <- c('time','Category','Daily_Infection')
+Infected$Category <- as.factor(Infected$Category)
+
+cbp2 = c("#999999", "#4d4d4d", "#56B4E9", "#1f78b4", "#8c510a", 
+                  "#dfc27d", 
+                  "#80cdc1",'#e31a1c','#762a83','#2166ac','black')
+ltp = c("dashed", "dashed", "dashed", "dashed", "dashed", "dashed", "dashed", "solid","solid","solid","solid")
+ggplot(Infected,aes(x=time))+
+  geom_line(aes(y= Daily_Infection,colour = Category,linetype = Category), linewidth = 1)+
+  scale_color_manual(values = cbp2) +
+  scale_linetype_manual(values= ltp)+
+  theme_bw() +
+  theme(axis.text = element_text(size = 15)) +
+  xlab("day") +
+  ylab("Number of Infected with COVID-19") +
+  ggtitle("PCR Tests: Optimal Results (in Pareto Front): Daily_Infection")
+#ggsave("PCR tests_Optimal_Results_Daily.png",width = 960/96, height = 600/96, dpi=700)
+
+ggplot(Infected_cum, aes(x=time))+
+  geom_line(aes(y= Cumulative_Infection,colour = Category,linetype = Category), linewidth = 1)+ #, size = 1.5
+  geom_text_repel(aes(y= Cumulative_Infection, label = Category), data = subset(Infected_cum, time == 107), size = 3) +
+  #geom_label_repel(aes(y= Cumulative_Infection, label = Category), data = subset(Infected_cum, time == 107), size = 2) +
+  scale_color_manual(values = cbp2) +
+  scale_linetype_manual(values= ltp)+
+  theme_bw() +
+  xlab("day") +
+  ylab("Number of Infected with COVID-19") +
+  ggtitle("PCR Tests: Optimal Results (in Pareto Front): Cumulative_Infection")
+#ggsave("PCR tests_Optimal_Results_Cumulative.png",width = 960/96, height = 600/96, dpi=700)
+```
+
+# 4. Graph Daily Absence
+```{r}
+## daily absence
+# ind_s = N_total*unname(rowSums(current[(7*i-13),c((7*nage+1):(8*nage-1),(8*nage+1):(9*nage-1))])) # indicator students
+      # ind_t = N_total*unname(rowSums(current[(7*i-13),c((8*nage),(9*nage))])) # indicator teachers
+absent_s = cbind.data.frame(rep(seq(1,107),7),
+                            c(rep(paste0("Result_", 1:n_results),each = 107)),
+                            c(N_total*unname(rowSums(current_opt1[,c((7*nage+1):(8*nage-1),(8*nage+1):(9*nage-1))])),
+                              N_total*unname(rowSums(current_opt2[,c((7*nage+1):(8*nage-1),(8*nage+1):(9*nage-1))])),
+                              N_total*unname(rowSums(current_opt3[,c((7*nage+1):(8*nage-1),(8*nage+1):(9*nage-1))])),
+                              N_total*unname(rowSums(current_opt4[,c((7*nage+1):(8*nage-1),(8*nage+1):(9*nage-1))])),
+                              N_total*unname(rowSums(current_opt5[,c((7*nage+1):(8*nage-1),(8*nage+1):(9*nage-1))])),
+                              N_total*unname(rowSums(current_opt6[,c((7*nage+1):(8*nage-1),(8*nage+1):(9*nage-1))])),
+                              N_total*unname(rowSums(current_opt7[,c((7*nage+1):(8*nage-1),(8*nage+1):(9*nage-1))]))))
+colnames(absent_s) <- c('time','Category','Daily_Absent')
+Infected$Category <- as.factor(Infected$Category)
+
+absent_t = cbind.data.frame(rep(seq(1,107),7),
+                            c(rep(paste0("Result_", 1:n_results),each = 107)),
+                            c(N_total*unname(rowSums(current_opt1[,c((8*nage),(9*nage))])),
+                              N_total*unname(rowSums(current_opt2[,c((8*nage),(9*nage))])),
+                              N_total*unname(rowSums(current_opt3[,c((8*nage),(9*nage))])),
+                              N_total*unname(rowSums(current_opt4[,c((8*nage),(9*nage))])),
+                              N_total*unname(rowSums(current_opt5[,c((8*nage),(9*nage))])),
+                              N_total*unname(rowSums(current_opt6[,c((8*nage),(9*nage))])),
+                              N_total*unname(rowSums(current_opt7[,c((8*nage),(9*nage))]))))
+colnames(absent_t) <- c('time','Category','Daily_Absent')
+Infected$Category <- as.factor(Infected$Category)
+
+ggplot(absent_s,aes(x=time))+
+  geom_line(aes(y= Daily_Absent,colour = Category),size = 1)+
+  scale_color_manual(values = cbp2[1:7]) +
+  theme_bw() +
+  geom_vline(xintercept=seq(1,107,7), linetype="dashed", color = "grey") + 
+  ylab("Number of Absent") +
+  ggtitle("PCR Tests: Optimal Results (in Pareto Front): Daily_Absent_Students")
+#ggsave("PCR tests_Optimal_Results_Daily_Absent_s.png",width = 960/96, height = 600/96, dpi=700)
+
+ggplot(absent_t,aes(x=time))+
+  geom_line(aes(y= Daily_Absent,colour = Category),size = 1)+
+  scale_color_manual(values = cbp2[1:7]) +
+  theme_bw() +
+  ylab("Number of Absent") +
+  ggtitle("PCR Tests: Optimal Results (in Pareto Front): Daily_Absent_Teachers")
+#ggsave("PCR tests_Optimal_Results_Daily_Absent_t.png",width = 960/96, height = 600/96, dpi=700)
+```
+
+# 5. Testing schedules
+```{r}
+# read results
+nsga_result = read_excel("0606 rerun 3 obj used in dissertation/0606 3 obj pcr 1 PT 1 AT used in dissertation.xlsx", sheet = 'Sheet1')
+nsga_result = nsga_result[,2:36]
+
+nsga_result_sub = nsga_result#[nsga_result$c3 == 3,]
+
+opt_t = nsga_result_sub %>% 
+  arrange(nsga_result_sub$c1, decreasing = TRUE) %>%
+  pivot_longer(paste0("x1_", 1:16), names_to = "variable", values_to = "value") %>%
+  select(-paste0("x2_", 1:16)) %>%
+  mutate(week = factor(rep(seq(1,16), nrow(nsga_result_sub)))) %>%
+  mutate(schedule = factor(rep(paste0("Schedule_", 1:nrow(nsga_result_sub)), each = 16), levels = paste0("Schedule_", 1:nrow(nsga_result_sub))))
+  #mutate(X = rep(c(rep("test_value",16),rep("mask_value",16)),nrow(nsga_result_sub))) %>%
+  #pivot_wider(id_cols = c(c1, c2, c3), names_from = variable, values_from = value, names_repair = "check_unique")
+
+opt_m = nsga_result_sub %>% 
+  arrange(nsga_result_sub$c1, decreasing = TRUE) %>%
+  pivot_longer(paste0("x2_", 1:16), names_to = "variable", values_to = "value") %>%
+  select(-paste0("x1_", 1:16)) %>%
+  mutate(week = factor(rep(seq(1,16), nrow(nsga_result_sub)))) %>%
+  mutate(schedule = factor(rep(paste0("Schedule_", 1:nrow(nsga_result_sub)), each = 16), levels = paste0("Schedule_", 1:nrow(nsga_result_sub))))
+
+# opt$week = factor(rep(seq(1,16), nrow(nsga_result)))
+# opt$schedule = rep(paste0("Schedule_", 1:nrow(nsga_result)), each = 16)
+# opt$schedule = factor(opt$schedule, levels = paste0("Schedule_", 1:nrow(nsga_result)))
+
+## end value
+data_ends_opt_t = opt_t %>% 
+  group_by(schedule) %>%
+  filter(c1 == min(c1)) %>%
+  distinct(c1)
+
+data_ends_opt_m = opt_m %>% 
+  group_by(schedule) %>%
+  filter(c1 == min(c1)) %>%
+  distinct(c1)
+
+
+
+library(viridis)
+library(ggtext)
+ggplot(opt_t, aes(y = week, x = schedule, fill= value*0.2)) + 
+  geom_tile(color="white", linewidth=0.1) +
+  geom_textbox(opt_t[opt_t$week == 1,], mapping = aes(x = schedule, y = week, label = round(c1,2)), maxwidth = 0.17, maxheight = 0.027, valign = 0.5,
+               orientation = "left-rotated", size = 3, hjust = -0.2, text.colour = "#002F5E", fill = "white", box.colour = "#002F5E") +
+  #geom_text(opt[opt$week == 1,], mapping = aes(x = schedule, y = week, label = round(c1,0)), angle = 90, hjust = -1, size = 3, colour = "#391F1B") +
+  coord_cartesian(clip = 'off') + 
+  theme(plot.margin = margin(100, 2, 2, 2, unit = "pt")) +
+  scale_fill_viridis(name="Testing Ratio",labels = scales::percent, option = "magma") +
+  scale_y_discrete(limits=rev) +
+  #coord_equal() +
+  theme(axis.title.y = element_text(size=15),
+        axis.title.x=element_blank(),
+        axis.text.x = element_text(size=13, angle = 90, vjust = 0.5, hjust=1))
+
+#ggsave("PCR Tests - Testing Schedule: all schedules.png",width = 1000/96, height = 600/96, dpi=700)
+
+ggplot(opt_m, aes(y = week, x = schedule, fill= ifelse(value == 0, "NO", "YES"))) + 
+  geom_tile(color="white", linewidth=0.1) +
+  geom_textbox(opt_m[opt_m$week == 1,], mapping = aes(x = schedule, y = week, label = round(c1,2)), maxwidth = 0.17, maxheight = 0.027, valign = 0.5,
+               orientation = "left-rotated", size = 3, hjust = -0.2, text.colour = "#002F5E", fill = "white", box.colour = "#002F5E") +
+  #geom_text(opt[opt$week == 1,], mapping = aes(x = schedule, y = week, label = round(c1,0)), angle = 90, hjust = -1, size = 3, colour = "#391F1B") +
+  coord_cartesian(clip = 'off') + 
+  theme(plot.margin = margin(100, 2, 2, 2, unit = "pt")) +
+  scale_fill_viridis(name="Mask:", discrete=TRUE, option = "magma", begin = 0, end = 1) +
+  scale_y_discrete(limits=rev) +
+  #coord_equal() +
+  theme(axis.title.y = element_text(size=15),
+        axis.title.x=element_blank(),
+        axis.text.x = element_text(size=13, angle = 90, vjust = 0.5, hjust=1))
+#ggsave("PCR Tests - Mask Schedule: all schedules.png",width = 1000/96, height = 600/96, dpi=700)
+
+# filter masks == 3
+opt_t = opt_t[opt_t$c3 == 3,]
+
+ggplot(opt_t, aes(y = week, x = schedule, fill= value*0.2)) + 
+  geom_tile(color="white", linewidth=0.1) +
+  geom_textbox(opt_t[opt_t$week == 1,], mapping = aes(x = schedule, y = week, label = round(c1,2)), maxwidth = 0.17, maxheight = 0.027, valign = 0.5,
+               orientation = "left-rotated", size = 3, hjust = -0.2, text.colour = "#002F5E", fill = "white", box.colour = "#002F5E") +
+  #geom_text(opt[opt$week == 1,], mapping = aes(x = schedule, y = week, label = round(c1,0)), angle = 90, hjust = -1, size = 3, colour = "#391F1B") +
+  coord_cartesian(clip = 'off') + 
+  theme(plot.margin = margin(100, 2, 2, 2, unit = "pt")) +
+  scale_fill_viridis(name="Testing Ratio",labels = scales::percent, option = "magma") +
+  scale_y_discrete(limits=rev) +
+  #coord_equal() +
+  theme(axis.title.y = element_text(size=15),
+        axis.title.x=element_blank(),
+        axis.text.x = element_text(size=13, angle = 90, vjust = 0.5, hjust=1))
+  #labs(title = "PCR Tests - Testing Schedule: 3 weeks of masks")
+# ggsave("PCR Tests - Testing Schedule: 3 weeks of masks.png",width = 1000/96, height = 600/96, dpi=700)
+
+```
+
+# 6. Take a look at MASK == 0
+```{r}
+new_frame <- nsga_result %>%
+              filter(c3 == 0) %>%
+              #filter(round(c1,0) %in% c(192,217,245,265,292)) %>%  # quantile(c1)
+              distinct() %>%
+              arrange(c1)
+n_results <- dim(new_frame)[1]
+
+# choose five best results
+x_best1 = c(t(new_frame[1,4:35]))
+x_best2 = c(t(new_frame[2,4:35]))
+x_best3 = c(t(new_frame[3,4:35]))
+
+obj_best1 = obj_fun_1_yT_PCR(x_best1)
+current_opt1 = current_opt[1:Tn,]
+t_addition_opt1 = t_addition
+obj_best2 = obj_fun_1_yT_PCR(x_best2)
+current_opt2 = current_opt[1:Tn,]
+t_addition_opt2 = t_addition
+obj_best3 = obj_fun_1_yT_PCR(x_best3)
+current_opt3 = current_opt[1:Tn,]
+t_addition_opt3 = t_addition
+
+# find the additional test days
+best_results <- new_frame %>%
+              mutate(total_planned_testing_days = rowSums(new_frame[,4:19] != 0), .before = x1_1) %>%
+              select(c1,c2,total_planned_testing_days,c3) %>%
+              mutate(category = c(paste0("Result_", 1:n_results)), .before = c1)
+colnames(best_results)[c(2,3,5)] = c("total_infection","total_tests","total_mask_weeks")
+
+# add additional to routine
+best_results$total_AT_testing_days = c(sum(t_addition_opt1/0.4),sum(t_addition_opt2/0.4),
+                                     sum(t_addition_opt3/0.4))
+
+best_results$total_test_days = best_results$total_planned_testing_days + best_results$total_AT_testing_days
+#best_results = best_results[ , -which(names(best_results) %in% c("total_routine_test_days","total_add_test_days"))]
+best_results = best_results[,c(1,2,3,7,4,6,5)]
+
+# Graph of days of school missed
+# in isolation
+wdays = c(seq(1,107,7),seq(2,107,7),seq(3,107,7),seq(4,107,7),seq(5,107,7))
+TISO1 = sum(current_opt1[wdays,134:151]*500,current_opt1[wdays,153:170]*500)   # days of school missed
+TISO2 = sum(current_opt2[wdays,134:151]*500,current_opt1[wdays,153:170]*500)
+TISO3 = sum(current_opt3[wdays,134:151]*500,current_opt1[wdays,153:170]*500)
+
+best_results$days_school_missed = c(TISO1,TISO2,TISO3)
+
+library(formattable)
+FT2 = formattable(round(best_results[,2:7],0), list(
+      total_infection = color_bar("#e9c46a"),
+      total_tests = color_bar("#276419"),
+      total_test_days = color_bar("#7fbf7b"),
+      total_planned_testing_days = color_bar("#d9f0d3"),
+      total_AT_testing_days = color_bar("#d9f0d3"),
+      total_mask_weeks = color_bar("#beaed4")))#,
+      #days_school_missed = color_bar("#d6604d")))
+
+# export_formattable(FT,"FT.png")
+# save size 1000 * 360 840*360
+```
+
+# 7. 3 frequency together
+```{r}
+# read results
+nsga_result_1pt = read_excel("0606 rerun 3 obj used in dissertation/0606 3 obj rapid 1 PT NO AT used in dissertation.xlsx", sheet = 'Sheet1')
+nsga_result_2pt = read_excel("0606 rerun 3 obj used in dissertation/0606 3 obj rapid 2 PT NO AT used in dissertation.xlsx", sheet = 'Sheet1')
+nsga_result_5pt = read_excel("0606 rerun 3 obj used in dissertation/0606 3 obj rapid 5 PT NO AT used in dissertation.xlsx", sheet = 'Sheet1')
+nsga_result_1pt = nsga_result_1pt[,2:36]
+nsga_result_2pt = nsga_result_2pt[,2:36]
+nsga_result_5pt = nsga_result_5pt[,2:36]
+
+# plot
+ggplot(nsga_result_1pt, aes(x = c2, y = c1, color = as.factor(c3), group = as.factor(c3))) +
+  geom_point(size=3) +
+  geom_line() +
+  theme_bw() + 
+  ylim(110,310) +
+  scale_color_manual(values = cbp1) +
+  geom_text_repel(aes(x = c2, y = c1, label = round(c(max(c1),min(c1)))),
+                      data = subset(nsga_result_1pt, c1 %in% c(min(c1),max(c1))), size = 3) +
+  xlab("Number of Random Screening Tests")+
+  ylab("End of Semester Infections")+
+  labs(title = "PCR Tests - Pareto Front: 1 planned testing per week", color="Weeks of masks")
+# ggsave("Rapid Tests - Pareto Front: 1 planned testing per week.png",width = 1000/96, height = 600/96, dpi=700)
+
+# plot 3 together
+nsga_result_all = rbind(nsga_result_1pt,nsga_result_2pt,nsga_result_5pt)
+nsga_result_all$scenarios = c(rep("1 planned testing per week",nrow(nsga_result_1pt)),
+                         rep("2 planned testing per week",nrow(nsga_result_2pt)),
+                         rep("5 planned testing per week",nrow(nsga_result_5pt)))
+
+## end value
+data_ends <- nsga_result_all %>%
+  group_by(scenarios) %>%
+  filter(c1 %in% c(min(c1),max(c1))) %>%
+  mutate_all(.funs = function(x){round(x,0)})
+
+ggplot(nsga_result_all, aes(x = c2, y = c1, color = as.factor(c3), group = as.factor(c3))) +
+  geom_point(size=3) +
+  geom_line() +
+  theme_bw() + 
+  ylim(110,310) +
+  xlim(0,32000) +
+  scale_color_manual(values = cbp1) +
+  theme(strip.text = element_text(size = 20), plot.title = element_text(size = 25)) +
+  theme(axis.title=element_text(size=15), axis.text = element_text(size=13)) + 
+  geom_text_repel(aes(x = c2, y = c1, label = c1),
+                      data = data_ends, size = 3) +
+  facet_grid(~scenarios) +
+  theme(legend.position="right",legend.text = element_text(size=15),legend.title = element_text(size=15))+
+  xlab("Number of Random Screening Tests")+
+  ylab("End of Semester Infections") +
+  labs(title = "Rapid Tests - Pareto Front", color="Weeks of masks")
+#ggsave("Rapid Tests - Pareto Front 3 scenarios.png",width = 1800/96, height = 800/96, dpi=700)
+```
+
+# 8. rapid FF
+```{r}
+# read results
+nsga_result = read_excel("0606 3 obj rapid 1 PT 1 AT used in dissertation.xlsx", sheet = 'Sheet1')
+nsga_result = nsga_result[,2:36]
+
+cbp1 <- c("#999999", "#4d4d4d", "#56B4E9", "#1f78b4", 
+          "#8c510a", "#dfc27d", "#80cdc1", "#01665e",
+          "#b8e186", "#4d9221", "#b2abd2", "#542788",
+          "#fee090", "#d6604d", "#7f3b08", "#fdb863",
+          "#9e0142")
+          
+all_gg3 = ggplot(nsga_result) +
+  geom_point(aes(x = c2, y = c1, color = as.factor(c3)),size=2) +
+  theme_bw() +
+  geom_text_repel(aes(x = c2, y = c1, label = round(c(max(c1),min(c1)))),
+                      data = subset(nsga_result, c1 %in% c(min(c1),max(c1))), size = 3) +
+  theme(plot.title = element_text(size = 20)) +
+  theme(axis.title=element_text(size=15), axis.text = element_text(size=13)) + 
+  ylim(180,300) +
+  scale_color_manual(values = cbp1) +
+  xlab("Number of Random Screening Tests")+
+  ylab("End of Semester Infections")+
+  labs(title = "Rapid Tests: End of Semester Infections/Tests/Weeks of Masks", color="Weeks of masks")
+all_gg3
+
+#ggsave("rapid tests_First front results 3 obj.png",width = 960/96, height = 600/96, dpi=700)
+```
+
+# 9. timings for 3 frequencies rapid
+```{r}
+# read results
+timings1 = read_excel("0606 rerun 3 obj used in dissertation/0606 3 obj rapid 1 PT NO AT used in dissertation.xlsx", sheet = 'timings')
+timings2 = read_excel("0606 rerun 3 obj used in dissertation/0606 3 obj rapid 2 PT NO AT used in dissertation.xlsx", sheet = 'timings')
+timings3 = read_excel("0606 rerun 3 obj used in dissertation/0606 3 obj rapid 5 PT NO AT used in dissertation.xlsx", sheet = 'timings')
+
+timings = rbind(timings1,timings2,timings3)
+colnames(timings) = c("iter", "time(seconds)")
+timings$scenarios = c(rep("1 planned testing per week",nrow(timings1)),
+                      rep("2 planned testing per week",nrow(timings2)),
+                      rep("5 planned testing per week",nrow(timings3)))
+timings$iter = as.numeric(timings$iter)
+ggplot(timings) +
+  geom_line(aes(x = iter, y = `time(seconds)`), linewidth = 1, color = "#01665e") +
+  theme_bw() +
+  theme(plot.title = element_text(size = 20)) +
+  theme(axis.title=element_text(size=15), axis.text = element_text(size=13)) + 
+  ylim(130,200) +
+  facet_grid(~scenarios) +
+  theme(strip.text = element_text(size = 20), plot.title = element_text(size = 25)) +
+  theme(axis.title=element_text(size=15), axis.text = element_text(size=13)) + 
+  xlab("Generation")+
+  ylab("Run Time of Each Generation (in seconds)")+
+  labs(title = "Rapid Tests - Computation Time", color="Weeks of masks")
+#ggsave("Rapid Tests - Computation Time 3 scenarios.png",width = 1800/96, height = 800/96, dpi=700)
+```
+
+
