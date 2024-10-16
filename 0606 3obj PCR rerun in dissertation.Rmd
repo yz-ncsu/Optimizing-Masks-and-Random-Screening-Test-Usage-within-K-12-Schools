@@ -1,0 +1,300 @@
+---
+title: "3 obj: PCR reruns 4 testing scenarios for dissertation"
+output: pdf
+---
+  
+## Notes:
+1. 0 contact reduction and 0 masking and 20% self-quarantine
+2. Assume an initial infection on day 1
+3. x1 = 0% 20% 40% 60% 80%
+4. x2 = mask (25%)
+5. well-mixed
+6. Update sensitivity and specificity
+7. Customize NSGA-II function: pc0.9 pm0.03125 pop50 gen100
+
+## Code representation:
+Trigger: Monday absence 10 students or 2 teachers, 40% screening on Tuesday
+current[,(16*nage+1)] represent test rate
+current[,(16*nage+2)] represent YES or NO routine
+current[,(16*nage+3)] represent YES or NO addition
+current[,(17*nage+1)] mask
+
+```{r, setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+knitr::opts_knit$set(root.dir = '~/Documents/MDM manuscript 2024/R code and results in excel')
+
+```
+
+## Import package:
+```{r}
+library(deSolve)
+library(ggplot2)
+library(tidyr)
+library(dplyr)
+library(plyr)
+library(reshape2)
+library(openxlsx)
+library(readxl)
+library(readr)
+library(ggpubr)
+library(ggrepel)
+setwd("~/Documents/MDM manuscript 2024/R code and results in excel")
+# setwd("G:/My Drive/chapter 3")
+```
+
+## SEIR function
+```{r}
+sir_new <- function(time, x, parameters) {
+  ncompartment = 18
+  nage = length(x)/ncompartment
+  S = as.matrix(x[1:nage])
+  E = as.matrix(x[(nage+1):(2*nage)])
+  Ia = as.matrix(x[(2*nage+1):(3*nage)])
+  Ips = as.matrix(x[(3*nage+1):(4*nage)])
+  Is = as.matrix(x[(4*nage+1):(5*nage)])
+  TFNa = as.matrix(x[(5*nage+1):(6*nage)])
+  TFNs = as.matrix(x[(6*nage+1):(7*nage)])
+  TISOa = as.matrix(x[(7*nage+1):(8*nage)])
+  TISOs = as.matrix(x[(8*nage+1):(9*nage)])
+  UTISOa = as.matrix(x[(9*nage+1):(10*nage)])
+  UTISOs = as.matrix(x[(10*nage+1):(11*nage)])
+  RC = as.matrix(x[(11*nage+1):(12*nage)])
+  RU = as.matrix(x[(12*nage+1):(13*nage)])
+  D = as.matrix(x[(13*nage+1):(14*nage)])
+  I = as.matrix(x[(14*nage+1):(15*nage)])
+  I_known = as.matrix(x[(15*nage+1):(16*nage)])
+  Trap_a = as.matrix(x[(16*nage+1):(17*nage)])
+  Trap_s = as.matrix(x[(17*nage+1):(18*nage)])
+  
+  with(as.list(c(x, parameters)), {
+    dS = -S * beta * (eta * CM_a %*% ((Ia + TFNa + UTISOa)/N_pct) + CM_s %*% ((Ips + Is + TFNs + UTISOs)/N_pct)) + (RC + RU) * rr * ri
+    dE = S * beta * (eta * CM_a %*% ((Ia + TFNa + UTISOa)/N_pct) + CM_s %*% ((Ips + Is + TFNs + UTISOs )/N_pct)) - sigma * E
+    dIa = alpha * sigma * E  - Ia * (Tpcr_a + gamma)
+    dIps = (1-alpha) * sigma * E - delta * Ips 
+    dIs <- delta * Ips - Is * (Tpcr_s*(1-Q_s) + mu + gamma) - Is * Q_s
+    dTFNa <-  Tpcr_a * FNpcr_a * Ia - TFNa * gamma
+    dTFNs <-  Tpcr_s*(1-Q_s) * FNpcr_s * Is - TFNs * gamma - TFNs * mu # NEWthing1 first self-Q then screening in school
+    dTISOa <- Tpcr_a * (1-FNpcr_a) * Ca * Ia - TISOa * gamma
+    dTISOs <- Tpcr_s*(1-Q_s) * (1-FNpcr_s) * Cs * Is - TISOs * gamma - TISOs * mu + Is * Q_s
+    dUTISOa <- Tpcr_a * (1-FNpcr_a) * (1-Ca) * Ia - UTISOa * gamma
+    dUTISOs <- Tpcr_s*(1-Q_s) * (1-FNpcr_s) * (1-Cs) * Is - UTISOs * gamma -  UTISOs * mu
+    dRC <- gamma * (TISOa+UTISOa) + gamma * (TISOs+UTISOs) - RC * rr * ri
+    dRU <- gamma * Ia + gamma * Is + gamma * TFNa + gamma * TFNs - RU * rr * ri
+    dD <- mu * (Is + TFNs +TISOs + UTISOs)
+    dI <- sigma * E
+    dI_known = dIs + dTISOs + dUTISOs + dTFNs # all symptomatic
+    #dI_known = (1-alpha) * sigma * E - Is * (Tpcr_s + Trap_s + mu + gamma) + Tpcr_a * (1-FNpcr_a) * Ia + Trap_a * (1-FNrap_a) * Ia - TISOa * gamma -  UTISOa * gamma  # Symptomatic and Test Positive asymptomatics
+    dTrap_a = Trap_a - Trap_a
+    dTrap_s = Trap_s - Trap_s
+    return(list(c(dS,dE,dIa,dIps,dIs,dTFNa,dTFNs,dTISOa,dTISOs,dUTISOa,dUTISOs,dRC,dRU,dD,dI,dI_known,dTrap_a,dTrap_s)))
+  })
+}
+
+```
+
+## Parameters
+```{r}
+N_total = 500 # population size
+prevalence = 1 ### assume initial 1 infected students
+f = c(rep(0.7,18),0.5) # susceptible rate  
+recovered = 1-f # already infected or vaccination rate = pre-immune %
+Tn = 107
+alpha = 0.4 # percentage of asymptomatic infections Sensitivity analysis 2 base 0.4 low 0.2 high 0.6
+eta = 0.55 # discount on transmission for asymptomatic: beta_a NEW value is 0.55
+delta = 0.5 # presymptomatic period 2 days
+#gamma_a = 0.1
+gamma = 0.2 # 5 days to recover
+f_reduce = 1 # symptomatic infected people reduce their contacts by a factor, 1: no change 0: complete isolation
+sigma = 1 # 1/latent period
+seed = 1
+# NEWthing3 reinfection rate
+rr = 0.13
+ri = 1/100 # 1/reinfection period
+# contact matrix
+N = c(rep(26,18),32) # MAKE UP numbers of 3 grades and teacher group
+N_pct = N/N_total
+nage = length(N)
+
+A = #'segregate' 
+  #'cohort' 
+'well-mixed'
+
+tij_matrix = read_excel("tij_matrix_G19.xlsx",col_names = FALSE,sheet = A) 
+t = unname(as.matrix(tij_matrix)) # the total number of reported contacts over the course of 24 hours between participants in age group j and their reported contacts of estimated age group
+
+M0 = matrix(0,nrow=nage,ncol=nage)
+for (j in (1:nage)){
+  for (i in (1:nage)){
+    M0[i,j] = t[i,j]/N[i]/N[j]    # M0 is the contact matrix per person per person
+  }
+}
+
+M = matrix(0,nrow=nage,ncol=nage)
+for (j in (1:nage)){
+  for (i in (1:nage)){
+    M[i,j] = M0[i,j]/sum(M0[i,])    # M is unified by setting each row sum to 1
+  }
+}
+gaps = c(1,seq(1,16)*7) # week
+```
+
+# Scenario-specific parameters
+```{r}
+# Symptomatic Quarantine rate
+Q_s = 0.2 # 
+# Reduce contact scenario
+M = M * 1
+# Transmission rate
+beta = 0.5 * 2.021277
+# Test level
+test_level_rou <- 0.2 # routine tests
+test_level_rap <- 0
+test_level_add <- 0.4 # additional tests
+test_level <- max(test_level_rap,test_level_rou)
+```
+
+# R0 and initial row
+```{r}
+C = matrix(0,nrow=nage,ncol=nage)
+for (i in (1:nage)){
+  for (j in (1:nage)){
+    C[i,j] = M[i,j]*(N[i])/(N[j])
+  }
+}
+eig = eigen(C)
+#max(Re(eig$values))
+CM_a = M
+CM_s = f_reduce*CM_a
+
+R0 = beta*(max(Re(eig$values)))*((1 - alpha + alpha*eta)/gamma+(1-alpha)/delta) # NEW R0 = 9.5
+R0
+para = c(Q_s = Q_s, sigma = sigma, beta = beta, eta = eta, delta = delta, gamma = gamma, alpha = alpha, mu =0, CM_a = CM_a, CM_s = CM_s, Ca = 1, Cs = 1, FNpcr_a = 0.101, FNpcr_s = 0.101, FNrap_a = 0.453, FNrap_s = 0.27,FPpcr_a = 0.001, FPpcr_s = 0.001, FPrap_a = 0.003, FPrap_s = 0.009) # NEWthing4 compliance rate = 1
+
+FNpcr_a = 0.101
+FNpcr_s = 0.101
+FNrap_a = 0.453
+FNrap_s = 0.27
+
+Ca = 1
+Cs = 1
+# initial row:
+E0 = c(0,0,0,1,0,1,0,0,0,1,0,0,0,0,0,0,0,0,0)/N_total 
+#sensitivity analysis 3: exposed at the start base 1 c(0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0)
+#                                             high 3 c(0,0,0,1,0,1,0,0,0,1,0,0,0,0,0,0,0,0,0) low 0
+S0 = N_pct*f - E0 
+Ia0 = rep(0,nage)
+Is0 = rep(0,nage)
+I0 = Ia0+Is0
+current <- c(S = S0, E = E0, Ia = Ia0, Ips = rep(0,nage),Is = Is0, TFNa = rep(0,nage), TFNs =rep(0,nage) ,TISOa=rep(0,nage), TISOs =rep(0,nage) ,UTISOa =rep(0,nage) ,UTISOs =rep(0,nage) ,RC = rep(0,nage), RU = N_pct * recovered, D=rep(0,nage),I=I0, I_known = rep(0,nage), Trap_a = rep(0,nage), Trap_s = rep(0,nage))
+current <- t(current)
+current <- data.frame(current)
+```
+
+# decide number of testing each week, what day to test in each week is determined before hand
+```{r}
+# create empty matrix of current
+# current_all <- data.frame(matrix(0, nrow = 366, ncol = length(current)))
+# colnames(current_all) = colnames(current)
+library(purrr)
+
+set.seed(10)
+# n_new: number of new infection from community each week: random discrete uniform distribution
+# (first 4 weeks: ~d-unif(3,4), then: ~d-unif(1,2))
+n_new = c(rdunif(4,4,3),rdunif(12,2,1))
+# Y2: decides which group to put new infection each week 
+Y = matrix(runif(16*10), nrow = 10, ncol = 16)   # Generate population distributed number
+Y2 = matrix(rep(0,16*10), nrow = 10, ncol = 16)  
+# random list of grade group Y2
+p = c(0,cumsum(N_pct))
+for (i in (1:10)){
+  for (j in (1:16)){
+    for (pp in (2:(nage+1))){
+      if (Y[i,j] <= p[pp] & Y[i,j] > p[pp-1]){
+        Y2[i,j] = pp-1
+      }
+    }
+  }
+}
+```
+
+# Cost function
+```{r}
+t = 2
+Tn = 107
+# library(rootSolve)
+
+library(tictoc)
+
+## Multidimensional GA
+library(nsga2R)
+set.seed(1234)
+source("obj_fun_1_yT_PCR.R")
+source("my_nsga2R_laptop.R")
+source("my_boundedSBXover.R")
+source("my_boundedPolyMutation.R")
+library(mosmafs)
+tic.clearlog()
+tic("All")
+nsga_optim <- my_nsga2R_laptop(fn = obj_fun_1_yT_PCR, varNo = 32, objDim = 3, generations = 100,
+                        mprob = 0.03125, popSize = 50, cprob = 0.9,
+                        lowerBounds = c(rep(0, 16),rep(0, 16)), upperBounds = c(rep(4, 16),rep(1, 16)))  # integer version upperbound is 4 and 1
+log.txt <- tic.log(format = TRUE)
+log.lst <- tic.log(format = FALSE)
+timings <- unlist(lapply(log.lst, function(x) x$toc - x$tic))
+toc()
+# DP: 15479.571 sec elapsed
+
+## Note: change nsga2R internal function to integer functions of crossover and mutation
+# mosmafs::recIntSBX()
+# mosmafs::mutPolynomialInt()
+```
+
+# Write/Read Optimal Solutions
+```{r}
+nsga_result <- nsga_optim$objectives %>%
+  as.data.frame() %>%
+  bind_cols(as.data.frame(floor(nsga_optim$parameters))) %>%
+  filter(nsga_optim$paretoFrontRank == 1) %>%
+  mutate_all(.funs = function(x){round(x,2)}) %>%
+  distinct()
+colnames(nsga_result) = c("c1","c2","c3",paste0("x1_", 1:16),paste0("x2_", 1:16))
+
+# save results
+wb <- createWorkbook()
+addWorksheet(wb, "Sheet1")
+writeData(wb, "Sheet1", nsga_result)
+
+addWorksheet(wb, "timings")
+writeData(wb, "timings", timings)
+#write.xlsx(nsga_result, "Sensitivity Analysis 3 obj pcr 1 PT 1 AT mask 40%.xlsx")
+#write.xlsx(timings, "Sensitivity Analysis 3 obj pcr 1 PT 1 AT mask 40%.xlsx", sheetName = "timings", append = TRUE)
+#saveWorkbook(wb, file = "Sensitivity Analysis 3 obj pcr 1 PT 1 expose 3.xlsx", overwrite = TRUE)
+
+```
+
+Plot
+```{r}
+# read results
+nsga_result = read_excel("0606 3 obj pcr 1 PT 1 AT used in dissertation.xlsx", sheet = 'Sheet1')
+nsga_result = nsga_result[,2:36]
+
+cbp1 <- c("#999999", "#4d4d4d", "#56B4E9", "#1f78b4", 
+          "#8c510a", "#dfc27d", "#80cdc1", "#01665e",
+          "#b8e186", "#4d9221", "#b2abd2", "#542788",
+          "#fee090", "#d6604d", "#7f3b08", "#fdb863",
+          "#9e0142")
+          
+all_gg2 = ggplot(nsga_result) +
+  geom_point(aes(x = c2, y = c1, color = as.factor(c3)),size=2) +
+  theme_bw() +
+  geom_text_repel(aes(x = c2, y = c1, label = round(c(max(c1),min(c1)))),
+                      data = subset(nsga_result, c1 %in% c(min(c1),max(c1))), size = 3) +
+  ylim(180,300) +
+  scale_color_manual(values = cbp1) +
+  xlab("Number of Random Screening Tests")+
+  ylab("End of Semester Infections")+
+  labs(title = "PCR Tests: End of Semester Infections/Tests/Weeks of Masks", color="Weeks of masks")
+all_gg2
+
+ggsave("3 obj PCR ff 100 gen.png",width = 960/96, height = 600/96, dpi=700)
+```
