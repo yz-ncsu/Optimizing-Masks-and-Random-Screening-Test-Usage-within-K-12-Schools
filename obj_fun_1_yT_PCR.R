@@ -1,3 +1,5 @@
+## Copyright 2024 Yiwei Zhang
+
 # Objective Function: PCR - 1 PT + YES absence-triggering tests
 obj_fun_1_yT_PCR <- function(x){
   i = 2
