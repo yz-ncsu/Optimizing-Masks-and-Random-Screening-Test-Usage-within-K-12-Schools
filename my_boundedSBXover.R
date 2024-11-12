@@ -1,4 +1,4 @@
-Copyright 2024 Yiwei Zhang
+## Copyright 2024 Yiwei Zhang
 
 my_boundedSBXover <- function (parent_chromosome, lowerBounds, upperBounds, cprob, 
                             mu) 
