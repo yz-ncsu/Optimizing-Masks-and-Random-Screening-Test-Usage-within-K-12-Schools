@@ -1,3 +1,6 @@
+Copyright 2024 Yiwei Zhang
+
+
 my_boundedPolyMutation <- function (parent_chromosome, lowerBounds, upperBounds, mprob, 
                                     mum) 
 {
