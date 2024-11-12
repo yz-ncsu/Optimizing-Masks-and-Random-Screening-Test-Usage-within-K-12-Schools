@@ -1,3 +1,5 @@
+## Copyright 2024 Yiwei Zhang
+
 my_nsga2R_laptop <- function (fn, varNo, objDim, lowerBounds = rep(-Inf, varNo), 
                        upperBounds = rep(Inf, varNo), popSize = 100, tourSize = 2, 
                        generations = 20, cprob = 0.7, XoverDistIdx = 5, mprob = 0.2, 
