@@ -1,7 +1,5 @@
 Copyright 2024 Yiwei Zhang
 
-
-The code is written in R.
 For transparency and reproducibility, the code to generate the results in the manuscript are provided in this repository.
 
-Please execute the main code, which will invoke additional functions as part of the process.
+The code is written in R. Please execute the main code, which will invoke additional functions as part of the process.
